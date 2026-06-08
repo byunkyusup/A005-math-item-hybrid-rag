@@ -1,0 +1,7 @@
+__pycache__/
+*.pyc
+
+# 생성물 (gen_data.py / build_index.py로 재생성 가능)
+data/items.json
+data/responses.json
+data/embeddings.json
