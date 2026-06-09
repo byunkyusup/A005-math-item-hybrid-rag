@@ -22,7 +22,7 @@
 |---|---|
 | **무엇** | 자연어 질의("초5 분수 어려운 문항")로 적합한 수학 문항을 검색·추천 |
 | **검색(R)** | BM25(어휘) + bge-m3 임베딩(의미) → **Reciprocal Rank Fusion** 병합 |
-| **생성(G)** | 검색된 문항 카드를 컨텍스트로 `llama3.2:3b`가 추천 + 근거 설명 |
+| **생성(G)** | 검색된 문항 카드를 컨텍스트로 `qwen2.5:3b`가 추천 + 근거 설명 |
 | **데이터** | AIHub #27752 실제 스키마의 **합성 데이터** (문항 252건 + 응답로그 7,560건, 3PL IRT 시뮬레이션) |
 | **차별점** | sparse·dense·hybrid를 **정량 비교하는 평가 하니스** 내장 — hybrid가 단일 방식을 능가함을 수치로 증명 |
 
@@ -64,7 +64,7 @@ flowchart LR
 
     RRF["<b>RRF 병합</b><br/>fusion.py · rank 기반"]
     TOPK["상위 K 문항 카드"]
-    GEN["🤖 <b>생성</b><br/>Ollama llama3.2:3b<br/>generator.py"]
+    GEN["🤖 <b>생성</b><br/>Ollama qwen2.5:3b<br/>generator.py"]
     OUT["📋 추천 + 근거 설명"]
 
     Q --> BM25 --> RRF
@@ -90,7 +90,7 @@ flowchart LR
 # 0) 사전 준비: Ollama 실행 + 모델 2개
 ollama serve            # 별도 터미널
 ollama pull bge-m3      # 임베딩 (다국어)
-ollama pull llama3.2:3b # 생성
+ollama pull qwen2.5:3b  # 생성 (다국어, 한국어 양호)
 
 # 1) 합성 데이터 생성   → data/items.json, data/responses.json
 python3 gen_data.py
@@ -118,7 +118,7 @@ python3 eval.py
 3. **수치 조건(정답률·난이도)은 검색이 아니라 메타데이터 필터로.**
    "정답률 낮은 문항"은 의미 검색으로 정렬되지 않는다. 운영 시 `observedCorrectRate`/`difficultyGrade`로 **사전 필터 후 hybrid 검색**이 정석.
 4. **생성 모델의 한국어 품질도 별개 변수.**
-   `llama3.2:3b`는 한국어에 영어 토큰이 섞인다. 한국어가 중요하면 `src/config.py`의 `GEN_MODEL`만 한국어 강한 모델(예: `qwen2.5`)로 교체.
+   초기 `llama3.2:3b`는 한국어에 영어 토큰이 섞여 나왔다 → **`qwen2.5:3b`(다국어)로 교체해 해결**. `src/config.py`의 `GEN_MODEL` 한 줄만 바꾸면 되며, 더 높은 품질이 필요하면 `qwen2.5:7b`로.
 5. **작고 깨끗한 코퍼스에선 hybrid 이득이 작다.**
    컴포넌트가 좋으면 단일 방식도 1.00이 나온다. hybrid의 진짜 가치는 **크고 노이즈 많은 코퍼스 + 어휘 불일치**에서 커진다.
 
@@ -167,7 +167,7 @@ A005-math-item-hybrid-rag/
 | 키 | 기본값 | 설명 |
 |----|--------|------|
 | `EMBED_MODEL` | `bge-m3` | 임베딩 모델 (다국어, 1024d) |
-| `GEN_MODEL` | `llama3.2:3b` | 생성 모델 |
+| `GEN_MODEL` | `qwen2.5:3b` | 생성 모델 (다국어, 한국어 양호) |
 | `TOP_K_SPARSE` / `TOP_K_DENSE` | 30 / 30 | 1차 후보 수 |
 | `RRF_K` | 60 | RRF 상수 |
 | `FINAL_K` | 5 | LLM에 넘길 최종 문항 수 |

@@ -7,7 +7,7 @@ OLLAMA_HOST = "http://localhost:11434"
 # 임베딩 모델: bge-m3는 다국어(한국어 포함) 지원으로 의역 질의에 강하다.
 # nomic-embed-text(768d)는 영어 위주라 한국어 의미 검색이 약하다 — README 비교 참고.
 EMBED_MODEL = "bge-m3"             # 1024차원, 다국어 임베딩
-GEN_MODEL = "llama3.2:3b"          # 답변 생성
+GEN_MODEL = "qwen2.5:3b"           # 답변 생성 (다국어, 한국어 양호)
 EMBED_DIM = 1024
 
 # --- 검색 파라미터 ---
