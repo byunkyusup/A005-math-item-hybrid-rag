@@ -157,26 +157,28 @@ _GRADE_HUE = {"초1": 10, "초2": 40, "초3": 70, "초4": 110, "초5": 150,
               "초6": 190, "중1": 230, "중2": 270, "중3": 310}
 
 
-def render_graph_html(concepts: dict, edges: list) -> str:
-    tags = list(concepts)
-    idx = {t: i for i, t in enumerate(tags)}
+def render_graph_html(concepts: dict, edges: list, width: int = 1200, height: int = 800,
+                      iterations: int = 200) -> str:
+    """인터랙티브 그래프 HTML. 레이아웃 좌표를 미리 계산해 심어, 브라우저는
+    물리연산 없이 그리기 + 확대/이동/마우스오버만 처리한다(912노드도 즉시 렌더)."""
+    tags, pos, links = _compute_layout(concepts, edges, width, height, iterations)
     nodes = [
-        {"id": i, "label": concepts[t].get("name", t), "grade": concepts[t].get("grade", ""),
+        {"x": round(pos[i][0], 1), "y": round(pos[i][1], 1),
+         "label": concepts[t].get("name", t), "grade": concepts[t].get("grade", ""),
          "hue": _GRADE_HUE.get(concepts[t].get("grade", ""), 0)}
         for i, t in enumerate(tags)
     ]
-    links = [{"source": idx[a], "target": idx[b]}
-             for a, b in edges if a in idx and b in idx]
-    # <script type="application/json"> 안전 삽입: </script> 탈출만 차단(< → <).
-    data = json.dumps({"nodes": nodes, "links": links}, ensure_ascii=False).replace("<", "\\u003c")
+    link_json = [{"source": a, "target": b} for a, b in links]
+    data = json.dumps({"nodes": nodes, "links": link_json, "w": width, "h": height},
+                      ensure_ascii=False).replace("<", "\\u003c")
     return _GRAPH_TEMPLATE.replace("__DATA__", data)
 
 
-def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int = 800,
-                     iterations: int = 200) -> str:
-    """정적 SVG 그래프(브라우저 불필요, README 첨부용). Fruchterman-Reingold 레이아웃.
+def _compute_layout(concepts: dict, edges: list, width: int, height: int, iterations: int):
+    """Fruchterman-Reingold 레이아웃. 난수 없이 인덱스 기반 초기 배치(재현 가능).
 
-    난수 없이 인덱스 기반으로 초기 배치해 재현 가능하다.
+    반환: (tags, pos, links) — pos[i]=[x,y], links=[(i,j), ...].
+    SVG(정적)와 HTML(인터랙티브)이 동일 좌표를 공유한다.
     """
     import math
 
@@ -185,7 +187,7 @@ def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int
     links = [(idx[a], idx[b]) for a, b in edges if a in idx and b in idx]
     n = len(tags)
     if n == 0:
-        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"></svg>'
+        return tags, [], links
 
     # 결정적 초기 배치(원형 나선)
     pos = []
@@ -194,8 +196,7 @@ def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int
         r = (i / n) ** 0.5 * min(width, height) * 0.45
         pos.append([width / 2 + r * math.cos(ang), height / 2 + r * math.sin(ang)])
 
-    area = width * height
-    k = math.sqrt(area / n)          # 이상 거리
+    k = math.sqrt(width * height / n)  # 이상 거리
     temp = width / 10.0
     for _ in range(iterations):
         disp = [[0.0, 0.0] for _ in range(n)]
@@ -223,6 +224,16 @@ def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int
             pos[i][0] = min(width - 12, max(12, pos[i][0]))
             pos[i][1] = min(height - 12, max(12, pos[i][1]))
         temp *= 0.97
+    return tags, pos, links
+
+
+def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int = 800,
+                     iterations: int = 200) -> str:
+    """정적 SVG 그래프(브라우저 불필요, README 첨부용)."""
+    tags, pos, links = _compute_layout(concepts, edges, width, height, iterations)
+    n = len(tags)
+    if n == 0:
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"></svg>'
 
     parts = [
         f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
@@ -251,50 +262,64 @@ def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int
 
 _GRAPH_TEMPLATE = """<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
 <title>수학 개념 선후관계 그래프</title>
 <style>
- html,body{margin:0;height:100%;background:#0f1116;color:#e6e6e6;font-family:system-ui,sans-serif;overflow:hidden}
- #hud{position:fixed;top:10px;left:12px;font-size:13px;opacity:.85;z-index:2}
- #tip{position:fixed;padding:4px 8px;background:#000a;border-radius:6px;font-size:12px;pointer-events:none;display:none}
- canvas{display:block}
+ html,body{margin:0;height:100%;overflow:hidden;background:#0f1116;color:#e6e6e6;font-family:system-ui,sans-serif}
+ #hud{position:fixed;top:10px;left:12px;font-size:13px;opacity:.85;z-index:2;pointer-events:none}
+ #legend{position:fixed;top:10px;right:12px;font-size:12px;z-index:2;background:#0009;padding:8px 10px;border-radius:8px}
+ #legend div{display:flex;align-items:center;gap:6px;margin:2px 0}
+ #legend i{width:10px;height:10px;border-radius:50%;display:inline-block}
+ #tip{position:fixed;padding:5px 9px;background:#000d;border:1px solid #ffffff33;border-radius:6px;font-size:12px;pointer-events:none;display:none;z-index:3;max-width:280px}
+ canvas{display:block;cursor:grab}
 </style></head><body>
-<div id="hud">수학 개념 선후관계 그래프 · 노드=개념(학년별 색), 간선=선수→후속 · 드래그로 이동</div>
+<div id="hud">수학 개념 선후관계 그래프 · 노드=개념(학년별 색), 간선=선수→후속 · 휠=확대 · 드래그=이동 · 마우스오버=상세</div>
+<div id="legend"></div>
 <div id="tip"></div>
 <canvas id="c"></canvas>
 <script id="graph-data" type="application/json">__DATA__</script>
 <script>
 const G=JSON.parse(document.getElementById('graph-data').textContent);
-const cv=document.getElementById('c'),ctx=cv.getContext('2d'),tip=document.getElementById('tip');
-let W,H;function resize(){W=cv.width=innerWidth;H=cv.height=innerHeight;}resize();addEventListener('resize',resize);
 const N=G.nodes,L=G.links;
-for(const n of N){n.x=Math.random()*W;n.y=Math.random()*H;n.vx=0;n.vy=0;}
-const K=90;                       // 이상적 간선 길이
-function step(){
- for(const n of N){n.vx*=.85;n.vy*=.85;}
- for(let i=0;i<N.length;i++)for(let j=i+1;j<N.length;j++){
-   const a=N[i],b=N[j];let dx=a.x-b.x,dy=a.y-b.y,d=Math.hypot(dx,dy)||1;
-   const rep=2000/(d*d);a.vx+=dx/d*rep;a.vy+=dy/d*rep;b.vx-=dx/d*rep;b.vy-=dy/d*rep;}
- for(const l of L){const a=N[l.source],b=N[l.target];
-   let dx=b.x-a.x,dy=b.y-a.y,d=Math.hypot(dx,dy)||1,f=(d-K)*.01;
-   a.vx+=dx/d*f;a.vy+=dy/d*f;b.vx-=dx/d*f;b.vy-=dy/d*f;}
- for(const n of N){if(n===drag)continue;n.x+=n.vx;n.y+=n.vy;
-   n.x=Math.max(20,Math.min(W-20,n.x));n.y=Math.max(20,Math.min(H-20,n.y));}
-}
+const cv=document.getElementById('c'),ctx=cv.getContext('2d'),tip=document.getElementById('tip');
+let W,H,scale=1,ox=0,oy=0;
+const adj=N.map(()=>new Set());
+for(const l of L){adj[l.source].add(l.target);adj[l.target].add(l.source);}
+function fit(){W=cv.width=innerWidth;H=cv.height=innerHeight;
+ const s=Math.min(W/G.w,H/G.h)*0.92;scale=s;ox=(W-G.w*s)/2;oy=(H-G.h*s)/2;}
+fit();addEventListener('resize',()=>{fit();draw();});
+const sx=p=>p.x*scale+ox, sy=p=>p.y*scale+oy;
+let hover=-1,dragNode=-1,pan=null;
 function draw(){
  ctx.clearRect(0,0,W,H);
- ctx.strokeStyle='#ffffff22';ctx.beginPath();
- for(const l of L){const a=N[l.source],b=N[l.target];ctx.moveTo(a.x,a.y);ctx.lineTo(b.x,b.y);}ctx.stroke();
- for(const n of N){ctx.beginPath();ctx.arc(n.x,n.y,5,0,7);ctx.fillStyle='hsl('+n.hue+',70%,60%)';ctx.fill();}
+ ctx.lineWidth=1;
+ for(const l of L){const hot=hover>=0&&(l.source===hover||l.target===hover);
+   ctx.strokeStyle=hot?'#ffd54aaa':'#ffffff18';ctx.beginPath();
+   ctx.moveTo(sx(N[l.source]),sy(N[l.source]));ctx.lineTo(sx(N[l.target]),sy(N[l.target]));ctx.stroke();}
+ for(let i=0;i<N.length;i++){const n=N[i];
+   const near=hover>=0&&(i===hover||adj[hover].has(i));
+   const r=i===hover?8:(near?6:4);
+   ctx.globalAlpha=(hover<0||near)?1:0.3;
+   ctx.beginPath();ctx.arc(sx(n),sy(n),r,0,7);ctx.fillStyle='hsl('+n.hue+',70%,60%)';ctx.fill();
+   if(i===hover){ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();ctx.lineWidth=1;}
+   ctx.globalAlpha=1;}
 }
-function loop(){step();draw();requestAnimationFrame(loop);}loop();
-let drag=null;
-cv.addEventListener('mousedown',e=>{drag=pick(e);});
-addEventListener('mouseup',()=>drag=null);
-cv.addEventListener('mousemove',e=>{
- if(drag){drag.x=e.clientX;drag.y=e.clientY;drag.vx=drag.vy=0;}
- const n=pick(e);
- if(n){tip.style.display='block';tip.style.left=(e.clientX+10)+'px';tip.style.top=(e.clientY+10)+'px';
-   tip.textContent=n.label+' ('+n.grade+')';}else{tip.style.display='none';}
-});
-function pick(e){let best=null,bd=12;for(const n of N){const d=Math.hypot(n.x-e.clientX,n.y-e.clientY);if(d<bd){bd=d;best=n;}}return best;}
+function pick(mx,my){let best=-1,bd=11;
+ for(let i=0;i<N.length;i++){const d=Math.hypot(sx(N[i])-mx,sy(N[i])-my);if(d<bd){bd=d;best=i;}}return best;}
+cv.addEventListener('mousemove',e=>{const mx=e.clientX,my=e.clientY;
+ if(dragNode>=0){N[dragNode].x=(mx-ox)/scale;N[dragNode].y=(my-oy)/scale;draw();return;}
+ if(pan){ox=pan.ox+(mx-pan.x);oy=pan.oy+(my-pan.y);draw();return;}
+ const h=pick(mx,my);if(h!==hover){hover=h;draw();}
+ if(h>=0){const n=N[h];tip.style.display='block';tip.style.left=(mx+12)+'px';tip.style.top=(my+12)+'px';
+   tip.innerHTML='<b>'+n.label+'</b><br>학년: '+n.grade+' · 선후연결 '+adj[h].size+'개';}
+ else tip.style.display='none';});
+cv.addEventListener('mousedown',e=>{const h=pick(e.clientX,e.clientY);
+ if(h>=0)dragNode=h;else{pan={x:e.clientX,y:e.clientY,ox,oy};cv.style.cursor='grabbing';}});
+addEventListener('mouseup',()=>{dragNode=-1;pan=null;cv.style.cursor='grab';});
+cv.addEventListener('wheel',e=>{e.preventDefault();const f=e.deltaY<0?1.1:0.9,mx=e.clientX,my=e.clientY;
+ ox=mx-(mx-ox)*f;oy=my-(my-oy)*f;scale*=f;draw();},{passive:false});
+const seen={};for(const n of N)seen[n.grade]=n.hue;
+document.getElementById('legend').innerHTML=Object.keys(seen).sort().map(g=>
+ '<div><i style="background:hsl('+seen[g]+',70%,60%)"></i>'+g+'</div>').join('');
+draw();
 </script></body></html>"""

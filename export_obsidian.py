@@ -31,33 +31,15 @@ def main():
 
     stats = write_vault(concepts, items_by_tag, graph, config.VAULT_DIR)
 
-    html_doc = render_graph_html(concepts, edges)
-    svg_doc = render_graph_svg(concepts, edges)
+    html_doc = render_graph_html(concepts, edges)   # 인터랙티브(확대·이동·마우스오버)
+    svg_doc = render_graph_svg(concepts, edges)      # README 첨부용 정적 이미지
 
-    # 웹 랜딩(public/index.html): 미리 계산된 정적 SVG를 인라인 → JS/연산 없이 즉시 렌더.
-    index_doc = (
-        '<!doctype html><html lang="ko"><head><meta charset="utf-8">'
-        '<meta name="viewport" content="width=device-width, initial-scale=1">'
-        "<title>수학 개념 선후관계 그래프</title>"
-        "<style>html,body{margin:0;background:#0f1116;color:#e6e6e6;"
-        "font-family:system-ui,sans-serif}header{padding:14px 18px}"
-        "h1{font-size:18px;margin:0}p{margin:6px 0 0;opacity:.85;font-size:13px}"
-        "a{color:#8ab4ff}svg{display:block;width:100%;height:auto}</style></head>"
-        "<body><header><h1>수학 개념 선후관계 그래프</h1>"
-        "<p>912개념 · 1,633 선후간선 · 학년별 색 · AIHub #27752 실데이터 · "
-        '<a href="./graph.html">인터랙티브(드래그) 버전 →</a></p></header>'
-        + svg_doc + "</body></html>"
-    )
-
-    # 인터랙티브 graph.html (저장소 루트) + 웹 배포용 public/{index.html, graph.html}
-    with open(config.GRAPH_HTML_PATH, "w", encoding="utf-8") as f:
-        f.write(html_doc)
-    public_dir = os.path.join(config.PROJECT_DIR, "public")
-    os.makedirs(public_dir, exist_ok=True)
-    with open(os.path.join(public_dir, "index.html"), "w", encoding="utf-8") as f:
-        f.write(index_doc)
-    with open(os.path.join(public_dir, "graph.html"), "w", encoding="utf-8") as f:
-        f.write(html_doc)
+    # 웹 랜딩(public/index.html) = 인터랙티브 그래프. 저장소 루트에도 graph.html로 둔다.
+    for path in (config.GRAPH_HTML_PATH,
+                 os.path.join(config.PROJECT_DIR, "public", "index.html")):
+        os.makedirs(os.path.dirname(path), exist_ok=True)
+        with open(path, "w", encoding="utf-8") as f:
+            f.write(html_doc)
     # README 첨부용 정적 SVG
     assets_dir = os.path.join(config.PROJECT_DIR, "docs", "assets")
     os.makedirs(assets_dir, exist_ok=True)
@@ -66,7 +48,7 @@ def main():
 
     print(f"볼트 → {config.VAULT_DIR}")
     print(f"  개념 {stats['concepts']} · 단원 {stats['units']} · 대표문항 {stats['items']}")
-    print(f"그래프 → graph.html · public/index.html · docs/assets/concept-graph.svg "
+    print(f"그래프 → graph.html · public/index.html(인터랙티브) · docs/assets/concept-graph.svg "
           f"(개념 {len(concepts)} · 간선 {len(edges)})")
 
 

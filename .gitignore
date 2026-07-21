@@ -12,3 +12,5 @@ data/embeddings.json
 # Obsidian 볼트 (export_obsidian.py로 재생성 — 4,958파일/19MB라 미커밋)
 vault/
 # graph.html은 단독 실행 쇼케이스라 커밋함 (export_obsidian.py로 갱신)
+.vercel
+.env*
