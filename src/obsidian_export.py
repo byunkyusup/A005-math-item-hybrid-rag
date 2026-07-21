@@ -172,6 +172,83 @@ def render_graph_html(concepts: dict, edges: list) -> str:
     return _GRAPH_TEMPLATE.replace("__DATA__", data)
 
 
+def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int = 800,
+                     iterations: int = 200) -> str:
+    """정적 SVG 그래프(브라우저 불필요, README 첨부용). Fruchterman-Reingold 레이아웃.
+
+    난수 없이 인덱스 기반으로 초기 배치해 재현 가능하다.
+    """
+    import math
+
+    tags = [t for t in concepts]
+    idx = {t: i for i, t in enumerate(tags)}
+    links = [(idx[a], idx[b]) for a, b in edges if a in idx and b in idx]
+    n = len(tags)
+    if n == 0:
+        return f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}"></svg>'
+
+    # 결정적 초기 배치(원형 나선)
+    pos = []
+    for i in range(n):
+        ang = i * 2.399963  # 황금각
+        r = (i / n) ** 0.5 * min(width, height) * 0.45
+        pos.append([width / 2 + r * math.cos(ang), height / 2 + r * math.sin(ang)])
+
+    area = width * height
+    k = math.sqrt(area / n)          # 이상 거리
+    temp = width / 10.0
+    for _ in range(iterations):
+        disp = [[0.0, 0.0] for _ in range(n)]
+        for i in range(n):
+            xi, yi = pos[i]
+            for j in range(i + 1, n):
+                dx, dy = xi - pos[j][0], yi - pos[j][1]
+                d = math.hypot(dx, dy) or 0.01
+                f = k * k / d
+                ux, uy = dx / d * f, dy / d * f
+                disp[i][0] += ux; disp[i][1] += uy
+                disp[j][0] -= ux; disp[j][1] -= uy
+        for a, b in links:
+            dx, dy = pos[a][0] - pos[b][0], pos[a][1] - pos[b][1]
+            d = math.hypot(dx, dy) or 0.01
+            f = d * d / k
+            ux, uy = dx / d * f, dy / d * f
+            disp[a][0] -= ux; disp[a][1] -= uy
+            disp[b][0] += ux; disp[b][1] += uy
+        for i in range(n):
+            dx, dy = disp[i]
+            d = math.hypot(dx, dy) or 0.01
+            pos[i][0] += dx / d * min(d, temp)
+            pos[i][1] += dy / d * min(d, temp)
+            pos[i][0] = min(width - 12, max(12, pos[i][0]))
+            pos[i][1] = min(height - 12, max(12, pos[i][1]))
+        temp *= 0.97
+
+    parts = [
+        f'<svg xmlns="http://www.w3.org/2000/svg" width="{width}" height="{height}" '
+        f'viewBox="0 0 {width} {height}" font-family="sans-serif">',
+        f'<rect width="{width}" height="{height}" fill="#0f1116"/>',
+        '<g stroke="#ffffff22" stroke-width="1">',
+    ]
+    for a, b in links:
+        parts.append(f'<line x1="{pos[a][0]:.1f}" y1="{pos[a][1]:.1f}" '
+                     f'x2="{pos[b][0]:.1f}" y2="{pos[b][1]:.1f}"/>')
+    parts.append("</g><g>")
+    for i, t in enumerate(tags):
+        hue = _GRADE_HUE.get(concepts[t].get("grade", ""), 0)
+        parts.append(f'<circle cx="{pos[i][0]:.1f}" cy="{pos[i][1]:.1f}" r="4" '
+                     f'fill="hsl({hue},70%,60%)"/>')
+    parts.append("</g>")
+    # 학년 색 범례
+    lx, ly = 16, 24
+    for g, hue in _GRADE_HUE.items():
+        parts.append(f'<circle cx="{lx}" cy="{ly}" r="5" fill="hsl({hue},70%,60%)"/>'
+                     f'<text x="{lx + 10}" y="{ly + 4}" fill="#ccc" font-size="12">{g}</text>')
+        ly += 20
+    parts.append("</svg>")
+    return "\n".join(parts)
+
+
 _GRAPH_TEMPLATE = """<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <title>수학 개념 선후관계 그래프</title>
