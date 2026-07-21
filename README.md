@@ -198,6 +198,24 @@ docs/superpowers/    # 설계 스펙 · 구현 계획
 - **실데이터 재현성**: 원천/산출물은 커밋하지 않고(빌드로 재생성), 위 절차로 누구나 동일 결과 재현.
 - **무음 실패 금지**: 조인 미매칭·고아 간선·미기동을 카운트/메시지로 표면화.
 
+## 배포 자동화 (CI/CD)
+
+`main`에 머지되면 GitHub Actions(`.github/workflows/deploy.yml`)가 자동으로:
+
+1. 커밋된 정적 산출물(`public/`)을 **Vercel 프로덕션에 배포**
+2. `deploy-<타임스탬프>` **릴리스 태그 push**
+3. 배포 URL을 **Actions 실행 요약(Summary)** 에 표시하고, URL이 바뀌면 `README`·`.deploy-url` 자동 갱신
+
+필요한 저장소 시크릿(Settings → Secrets and variables → Actions):
+
+| 시크릿 | 설명 |
+|---|---|
+| `VERCEL_TOKEN` | [vercel.com/account/tokens](https://vercel.com/account/tokens) 발급 |
+| `VERCEL_ORG_ID` | `vercel link` 후 `.vercel/project.json` 의 `orgId` |
+| `VERCEL_PROJECT_ID` | 같은 파일의 `projectId` |
+
+> 콘텐츠 재생성(`build_catalog`/`build_index`/`export_obsidian`/`build_demo`)은 원천 데이터 + 로컬 Ollama가 필요하므로 **로컬에서 수행**하고, CI는 커밋된 `public/`만 배포합니다.
+
 ## 테스트
 
 ```bash

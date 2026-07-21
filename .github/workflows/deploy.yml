@@ -1,0 +1,88 @@
+name: Deploy to Vercel
+
+# main에 merge(push)되면 → Vercel 프로덕션 배포 → 릴리스 태그 push → 배포 URL 표시.
+# 필요한 저장소 시크릿(Settings → Secrets and variables → Actions):
+#   VERCEL_TOKEN       : https://vercel.com/account/tokens 에서 발급
+#   VERCEL_ORG_ID      : 로컬 `vercel link` 후 .vercel/project.json 의 orgId, 또는 `vercel project ls`
+#   VERCEL_PROJECT_ID  : 같은 파일의 projectId
+#
+# CI는 커밋된 정적 산출물(public/)을 배포한다. 콘텐츠 재생성(build_catalog/build_index/
+# export_obsidian/build_demo)은 원천 데이터 + 로컬 Ollama가 필요하므로 로컬에서 수행한다.
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: write        # 태그 push + 배포 URL 변경 시 README 갱신 커밋
+
+concurrency:
+  group: deploy-main
+  cancel-in-progress: true
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+    env:
+      VERCEL_ORG_ID: ${{ secrets.VERCEL_ORG_ID }}
+      VERCEL_PROJECT_ID: ${{ secrets.VERCEL_PROJECT_ID }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+
+      - name: Install Vercel CLI
+        run: npm i -g vercel@latest
+
+      - name: Deploy to Vercel (production)
+        id: deploy
+        run: |
+          set -e
+          vercel pull --yes --environment=production --token="${{ secrets.VERCEL_TOKEN }}"
+          DEPLOY_URL=$(vercel deploy --prod --token="${{ secrets.VERCEL_TOKEN }}" | tail -n1)
+          echo "deploy_url=$DEPLOY_URL" >> "$GITHUB_OUTPUT"
+          # 안정 별칭(프로덕션 도메인) = 가장 짧은 *.vercel.app URL
+          ALIAS=$(vercel inspect "$DEPLOY_URL" --token="${{ secrets.VERCEL_TOKEN }}" 2>&1 \
+            | grep -oE 'https://[A-Za-z0-9.-]+\.vercel\.app' \
+            | awk '{print length, $0}' | sort -n | head -n1 | cut -d" " -f2-)
+          echo "alias=${ALIAS:-$DEPLOY_URL}" >> "$GITHUB_OUTPUT"
+
+      - name: Push release tag
+        run: |
+          TAG="deploy-$(date -u +%Y%m%d-%H%M%S)"
+          git tag "$TAG"
+          git push origin "$TAG"
+          echo "tag=$TAG" >> "$GITHUB_ENV"
+
+      - name: Report & sync live URL
+        run: |
+          URL="${{ steps.deploy.outputs.alias }}"
+          DEP="${{ steps.deploy.outputs.deploy_url }}"
+          {
+            echo "### ✅ Vercel 프로덕션 배포 완료"
+            echo ""
+            echo "| 항목 | 값 |"
+            echo "|---|---|"
+            echo "| 라이브 URL | $URL |"
+            echo "| 이번 배포 | $DEP |"
+            echo "| 릴리스 태그 | $tag |"
+          } >> "$GITHUB_STEP_SUMMARY"
+
+          PREV=$(cat .deploy-url 2>/dev/null || echo "")
+          if [ "$URL" != "$PREV" ]; then
+            echo "$URL" > .deploy-url
+            # README의 기존 *.vercel.app 호스트를 새 URL로 치환(경로는 유지)
+            NEW_HOST=$(echo "$URL" | sed -E 's#https?://##; s#/.*##')
+            sed -i -E "s#https://[A-Za-z0-9.-]+\.vercel\.app#https://$NEW_HOST#g" README.md || true
+            git config user.name "github-actions[bot]"
+            git config user.email "github-actions[bot]@users.noreply.github.com"
+            git add .deploy-url README.md
+            git commit -m "chore: 라이브 URL 갱신 → $URL [skip ci]" || true
+            git push origin HEAD:main || true
+            echo "" >> "$GITHUB_STEP_SUMMARY"
+            echo "> ⚠️ URL이 변경되어 README/.deploy-url 을 갱신했습니다." >> "$GITHUB_STEP_SUMMARY"
+          fi
