@@ -1,7 +1,14 @@
 __pycache__/
 *.pyc
 
-# 생성물 (gen_data.py / build_index.py로 재생성 가능)
+# ETL 산출물 (build_catalog.py로 재생성)
+data/concepts.json
 data/items.json
-data/responses.json
+data/edges.json
+data/learners.json
+# 임베딩 캐시 (build_index.py로 재생성)
 data/embeddings.json
+
+# Obsidian 산출물 (export_obsidian.py로 재생성)
+vault/
+graph.html

@@ -1,202 +1,154 @@
-# 수학 문항 추천 Hybrid RAG · BM25 + bge-m3 + RRF
+# 수학 개념·문항 추천 Hybrid RAG · BM25 + bge-m3 + RRF + IRT
 
-> 초·중등 **수학 문항(item)을 텍스트 카드로 변환**해, **어휘 검색(BM25)** 과 **의미 검색(임베딩)** 을
-> **RRF로 병합**하고, 검색된 문항을 컨텍스트로 **로컬 LLM이 추천·근거를 생성**하는 Hybrid RAG입니다.
-> AIHub **「수학분야 학습자 역량 측정」**([#27752](https://aihub.or.kr/aidata/27752), 구축기관: 아이스크림에듀)의
-> 실제 스키마를 따르며, **외부 pip 의존성 없이** 표준 라이브러리 + 로컬 Ollama만으로 전 구간이 동작합니다.
+> AIHub **「수학분야 학습자 역량 측정」**([#27752](https://aihub.or.kr/aidata/27752), 구축: 아이스크림에듀)
+> **실데이터**로 만든 개념–문항 지식베이스 위에서, 자연어 질의를
+> **어휘 검색(BM25)** 과 **의미 검색(bge-m3 임베딩)** 으로 병합(**RRF**)하고,
+> **IRT 난이도·학습자 θ**로 재랭킹해 문항을 추천하며, 결과를 **로컬 LLM**이 근거와 함께 설명합니다.
+> 산출물은 **Obsidian 볼트 + `graph.html`**(개념 선후관계 그래프)로 내보냅니다.
+> **외부 pip 의존성 없이** 표준 라이브러리 + 로컬 [Ollama](https://ollama.com)만으로 전 구간이 동작합니다.
 
 <p>
   <img alt="Python" src="https://img.shields.io/badge/Python-3.10%2B-3776AB?logo=python&logoColor=white">
   <img alt="Dependencies" src="https://img.shields.io/badge/deps-stdlib%20only-2ea44f">
   <img alt="Ollama" src="https://img.shields.io/badge/runtime-Ollama-000000">
-  <img alt="Embedding" src="https://img.shields.io/badge/embedding-bge--m3%20(multilingual)-4B8BBE">
+  <img alt="Embedding" src="https://img.shields.io/badge/embedding-bge--m3-4B8BBE">
   <img alt="Fusion" src="https://img.shields.io/badge/fusion-RRF-7C3AED">
-  <img alt="Eval" src="https://img.shields.io/badge/Hit@5-hybrid%200.80-2ea44f">
+  <img alt="Rerank" src="https://img.shields.io/badge/rerank-IRT%20%2B%20%CE%B8-orange">
 </p>
 
 ---
 
-## 🎯 한눈에
+## 무엇이 "완성본"인가
 
-| | 내용 |
-|---|---|
-| **무엇** | 자연어 질의("초5 분수 어려운 문항")로 적합한 수학 문항을 검색·추천 |
-| **검색(R)** | BM25(어휘) + bge-m3 임베딩(의미) → **Reciprocal Rank Fusion** 병합 |
-| **생성(G)** | 검색된 문항 카드를 컨텍스트로 `qwen2.5:3b`가 추천 + 근거 설명 |
-| **데이터** | AIHub #27752 실제 스키마의 **합성 데이터** (문항 252건 + 응답로그 7,560건, 3PL IRT 시뮬레이션) |
-| **차별점** | sparse·dense·hybrid를 **정량 비교하는 평가 하니스** 내장 — hybrid가 단일 방식을 능가함을 수치로 증명 |
+기존 버전은 스키마를 흉내 낸 **합성 데이터**로 동작했습니다. 이 완성본은 **AIHub #27752 실데이터**를
+그대로 사용합니다. 이 데이터는 두 하위 데이터셋으로 구성됩니다.
 
-> ⚠️ **데이터 안내** — AIHub는 로그인·승인제라 실데이터를 자동으로 받을 수 없습니다. 본 저장소는 **동일 스키마의 합성(모샘) 데이터**로 파이프라인을 먼저 완성한 것이며, 승인 후 받은 실제 샘플 JSON으로 `data/items.json`·`data/responses.json`만 교체하면 그대로 동작합니다.
+| 하위 데이터셋 | 내용 | 이 프로젝트에서의 역할 |
+|---|---|---|
+| **학습자 성취수준** | 문항 IRT(난이도·변별도·추측도·`knowledgeTag`), 정오답 로그(196만), 응시자 IRT(θ) | 문항↔개념 연결, 실측 정답률, 난이도·θ 재랭킹 |
+| **수학 지식체계** | 개념명·설명·단원(대>중>소)·성취기준 + `fromConcept→toConcept` 선후관계(3,446 간선) | 검색 텍스트의 뼈대, Obsidian 지식그래프 |
 
----
+**핵심 조인**: 문항의 `knowledgeTag`(예 `7811`)가 지식체계의 개념 `id`와 **약 94% 매칭**됩니다.
+이 조인 덕분에 "문항에 지문 텍스트가 없다"는 한계를 개념 텍스트로 메워 Hybrid RAG가 성립합니다.
+(미매칭 6%는 `미분류 개념` 폴백으로 흡수하고 카운트를 로그로 표기합니다.)
 
-## 📊 평가 결과 — 왜 Hybrid인가
+## 왜 검색 단위가 '개념'인가
 
-`python eval.py` 는 질의를 두 종류로 나눠 각 방식의 강·약점을 비교합니다 (Hit@5 / MRR@5).
+문항 ~9,500개는 다수가 **같은 개념 텍스트를 공유**합니다. 문항 단위 임베딩은 중복·낭비이고
+의미 검색이 개념 클러스터를 통째로 반환합니다. 그래서 **개념(약 1,631개) 단위로 인덱싱**하고,
+질의 → 상위 개념 → 그 개념의 문항으로 **확장한 뒤 IRT 난이도·θ로 재랭킹**합니다.
+결과적으로 "개념 → 대표문항"이 자연스럽게 산출되어 Obsidian 표현과도 잘 맞습니다.
 
-| 질의 유형 | sparse (BM25) | dense (임베딩) | **hybrid (RRF)** |
-|-----------|:---:|:---:|:---:|
-| **A. 키워드 질의** (교육과정 용어 그대로) | 1.00 | 1.00 | **1.00** |
-| **B. 실생활 맥락 질의** (어휘 겹침 적음) | 0.20 | 0.40 | **0.60** |
-| **A+B 전체** (견고성) | 0.60 | 0.70 | **0.80** |
-
-```
-"사다리를 벽에 비스듬히 세웠을 때 높이는?"  →  sparse ✗ (어휘 불일치)  dense ✓ (의미)
-"피타고라스 정리 문항"                        →  sparse ✓ (정확 용어)    dense ✓
-            ⇒ 두 방식이 서로 다른 질의에서 실패 → RRF가 적중을 합쳐 hybrid가 둘을 능가
-```
-
-> 키워드 질의는 어느 방식이든 잘 맞히지만, 실생활 맥락 질의에서는 sparse와 dense가 **서로 다른 질의에서** 실패합니다. RRF가 둘의 적중을 합쳐 hybrid가 단일 방식을 능가합니다 (0.60 > 0.40 > 0.20). **데이터를 조작하지 않고 질의 표현만 현실적으로 바꿔** 얻은 결과입니다.
-
----
-
-## 🎬 실행 예시
-
-```console
-$ python query.py "초등 5학년 분수 단원에서 학생들이 연습할 문항을 추천해줘"
-
-=== 검색 결과 (mode=hybrid, 5건) ===
-1. [A초50115] 초5 수와 연산 > 분수의 곱셈 | 선택형 | 난이도 중(b=-0.43) | 정답률 76.7% | score=0.0328
-2. [A초50116] 초5 수와 연산 > 분수의 곱셈 | 단답형 | 난이도 하(b=-1.65) | 정답률 86.7% | score=0.0318
-3. [A초50117] 초5 수와 연산 > 분수의 곱셈 | 서술형 | 난이도 중(b=0.01) | 정답률 50.0% | score=0.0317
-4. [A초50112] 초5 수와 연산 > 분수의 덧셈과 뺄셈 | 선택형 | 난이도 하(b=-1.21) | 정답률 60.0% | score=0.0311
-5. [A초50113] 초5 수와 연산 > 분수의 덧셈과 뺄셈 | 단답형 | 난이도 하(b=-1.01) | 정답률 73.3% | score=0.0299
-
-=== LLM 추천 (Ollama · qwen2.5:3b) ===
-추천하는 문항은 [A초50116] 초5 1학기 · 수와 연산 > 분수의 곱셈입니다.
-
-이 문항이 가장 적합한 이유는 다음과 같습니다:
-
-- 단원: 요청하신 분수 단원에 해당합니다.
-- 난이도: 초등학교 5학년 학생들이 이해하고 연습할 수 있는 수준입니다.
-- 정답률: 실측 정답률이 86.7%로, 학생들의 이해도를 확인하는 데 좋습니다.
-
-따라서 이 문항을 사용하여 초등학교 5학년 학생들이 분수의 곱셈에 대해 연습할 수 있습니다.
-```
-
-> 검색은 hybrid(BM25+임베딩+RRF)로 분수 관련 문항을 모아 오고, 생성 모델이 그 안에서 근거(단원·난이도·정답률)와 함께 한 문항을 추천합니다. `--mode sparse|dense`, `--no-gen` 옵션으로 단계별 동작도 확인할 수 있습니다.
-
----
-
-## 📐 아키텍처
+## 아키텍처
 
 ```mermaid
-flowchart LR
-    Q["🔍 질의<br/>초5 분수 어려운 문항 추천"]
-
-    subgraph R["검색 Retrieval"]
-        direction TB
-        BM25["<b>BM25 · 어휘</b><br/>tokenizer + bm25.py<br/>정확 키워드(학년·단원) 강함"]
-        DENSE["<b>임베딩 · 의미</b><br/>Ollama bge-m3 + dense.py<br/>의역·실생활 맥락 강함"]
-    end
-
-    RRF["<b>RRF 병합</b><br/>fusion.py · rank 기반"]
-    TOPK["상위 K 문항 카드"]
-    GEN["🤖 <b>생성</b><br/>Ollama qwen2.5:3b<br/>generator.py"]
-    OUT["📋 추천 + 근거 설명"]
-
-    Q --> BM25 --> RRF
-    Q --> DENSE --> RRF
-    RRF --> TOPK --> GEN --> OUT
+flowchart TD
+    A["성취수준 zip (스트리밍)<br/>+ 지식체계 JSON"] -->|ETL 조인| B["카탈로그<br/>concepts / items / edges / learners.json"]
+    B --> C["개념 카드<br/>BM25(어휘) + bge-m3(의미)"]
+    Q["질의 + --grade/--difficulty/--theta"] --> C
+    C -->|RRF 병합| D["상위 개념"]
+    D -->|문항 확장 + IRT·θ 재랭킹| E["최종 문항"]
+    E --> F["로컬 LLM: 추천 + 근거 + 선수개념"]
+    B --> G["Obsidian 볼트 + graph.html"]
 ```
 
-| 단계 | 모듈 | 역할 |
-|------|------|------|
-| 데이터 | `gen_data.py` | AIHub 스키마 합성 데이터 + 3PL IRT로 정오답 시뮬레이션 |
-| 코퍼스 | `src/corpus.py` | 문항+응답로그 → 정답률 집계 → 검색용/임베딩용 텍스트 분리 |
-| 어휘 검색 | `src/bm25.py`, `src/tokenizer.py` | 순수 파이썬 BM25(역색인) + 한국어 bigram 토크나이저 |
-| 의미 검색 | `src/dense.py`, `src/ollama_client.py` | bge-m3 임베딩 + 코사인 유사도 |
-| 병합 | `src/fusion.py` | Reciprocal Rank Fusion |
-| 검색기 | `src/retriever.py` | sparse / dense / hybrid 오케스트레이션 |
-| 생성 | `src/generator.py` | 검색 결과 → LLM 추천 프롬프트 |
+## 빠른 시작
 
----
-
-## 🚀 빠른 시작
+### 0) 사전 준비
 
 ```bash
-# 0) 사전 준비: Ollama 실행 + 모델 2개
-ollama serve            # 별도 터미널
-ollama pull bge-m3      # 임베딩 (다국어)
-ollama pull qwen2.5:3b  # 생성 (다국어, 한국어 양호)
-
-# 1) 합성 데이터 생성   → data/items.json, data/responses.json
-python3 gen_data.py
-
-# 2) 임베딩 인덱스 구축 → data/embeddings.json
-python3 build_index.py
-
-# 3) 질의 (검색 + LLM 추천)
-python3 query.py "초등 5학년 분수 단원에서 어려운 문항 추천해줘"
-python3 query.py --mode sparse "일차방정식 단답형 문항"   # 검색 방식 지정
-python3 query.py --no-gen "피타고라스 정리 활용 문제"      # 검색 결과만
-
-# 4) 검색 품질 비교 (sparse vs dense vs hybrid)
-python3 eval.py
+# Ollama 모델 (임베딩 / 생성)
+ollama pull bge-m3
+ollama pull qwen2.5:3b
 ```
 
----
+AIHub #27752에서 **두 하위 데이터셋을 모두** 내려받습니다(성취수준 + 지식체계).
+원천 경로는 환경변수로 지정할 수 있습니다(기본값은 `src/config.py`의 `RAW_DATA_DIR`).
 
-## 💡 실무 교훈 (이 데모에서 실제로 겪은 것)
-
-1. **임베딩 모델 선택이 비영어권 hybrid 품질을 좌우한다.**
-   `nomic-embed-text`(영어 위주)는 한국어 의역 질의 Hit@5 = **0.20** → `bge-m3`(다국어)로 교체 시 **0.40~1.00**으로 급등. 한국어 RAG라면 임베딩 모델부터 다국어/한국어 지원으로 고를 것.
-2. **임베딩용 텍스트와 BM25용 텍스트를 분리하라.**
-   BM25엔 키워드 풍부한 전체 카드(IRT 모수·정답률 포함), 임베딩엔 숫자 노이즈를 제거한 의미 텍스트(`corpus.build_embedding_text`). 노이즈 제거만으로 dense 키워드 Hit@5가 0.40→0.60 개선.
-3. **수치 조건(정답률·난이도)은 검색이 아니라 메타데이터 필터로.**
-   "정답률 낮은 문항"은 의미 검색으로 정렬되지 않는다. 운영 시 `observedCorrectRate`/`difficultyGrade`로 **사전 필터 후 hybrid 검색**이 정석.
-4. **생성 모델의 한국어 품질도 별개 변수.**
-   초기 `llama3.2:3b`는 한국어에 영어 토큰이 섞여 나왔다 → **`qwen2.5:3b`(다국어)로 교체해 해결**. `src/config.py`의 `GEN_MODEL` 한 줄만 바꾸면 되며, 더 높은 품질이 필요하면 `qwen2.5:7b`로.
-5. **작고 깨끗한 코퍼스에선 hybrid 이득이 작다.**
-   컴포넌트가 좋으면 단일 방식도 1.00이 나온다. hybrid의 진짜 가치는 **크고 노이즈 많은 코퍼스 + 어휘 불일치**에서 커진다.
-
----
-
-## 🔄 실제 AIHub 데이터로 교체하기
-
-승인 후 받은 데이터를 본 스키마에 맞춰 변환해 넣으면 됩니다.
-
-- **`data/items.json`** — 문항 1건당:
-  `assessmentItemID`, `testID`, `grade`, `schoolLevel`, `semester`, `area`, `concept`,
-  `itemType`, `difficulty{a,b,c}`, `difficultyGrade`, `keywords[]`, `description`
-- **`data/responses.json`** — 응답 1건당:
-  `learnerID`, `learnerProfile{gender,schoolLevel,grade}`, `testID`, `assessmentItemID`,
-  `answerCode(0/1)`, `timeStamp`
-
-> 실데이터 문항에 실제 발문/지문 텍스트가 있으면 `description`에 넣을수록 dense 검색 품질이 좋아집니다.
-> 교체 후 `python3 build_index.py`로 임베딩만 다시 만들면 됩니다.
-
----
-
-## 🗂️ 프로젝트 구조
-
-```
-A005-math-item-hybrid-rag/
-├── gen_data.py          # 합성 데이터 생성 (AIHub 스키마 + 3PL IRT)
-├── build_index.py       # 임베딩 인덱스 구축 → data/embeddings.json
-├── query.py             # 질의 CLI (검색 + LLM 추천)
-├── eval.py              # sparse vs dense vs hybrid 평가 하니스
-└── src/
-    ├── config.py        # 모델명·검색 파라미터·경로
-    ├── ollama_client.py # Ollama HTTP (urllib, stdlib)
-    ├── tokenizer.py     # 한국어 bigram 토크나이저
-    ├── bm25.py          # 순수 파이썬 BM25 + 역색인
-    ├── dense.py         # 코사인 유사도 검색
-    ├── fusion.py        # Reciprocal Rank Fusion
-    ├── corpus.py        # 문항+응답 → 문서 텍스트
-    ├── retriever.py     # Hybrid 검색 오케스트레이션
-    └── generator.py     # RAG 생성 프롬프트
+```bash
+export MATH_DATA_DIR="/path/to/수학분야 학습자 역량 측정 데이터"
 ```
 
----
+### 1) 카탈로그 빌드 (ETL)
 
-## ⚙️ 설정 (`src/config.py`)
+```bash
+python build_catalog.py                 # 전량 (196만 로그 1-pass, 수 분 소요)
+python build_catalog.py --grade 3학년    # 특정 학년만 (빠른 확인용, 반복 지정 가능)
+python build_catalog.py --limit 200000   # 정오답 집계 상한 (개발용)
+```
 
-| 키 | 기본값 | 설명 |
-|----|--------|------|
-| `EMBED_MODEL` | `bge-m3` | 임베딩 모델 (다국어, 1024d) |
-| `GEN_MODEL` | `qwen2.5:3b` | 생성 모델 (다국어, 한국어 양호) |
-| `TOP_K_SPARSE` / `TOP_K_DENSE` | 30 / 30 | 1차 후보 수 |
-| `RRF_K` | 60 | RRF 상수 |
-| `FINAL_K` | 5 | LLM에 넘길 최종 문항 수 |
-| `BM25_K1` / `BM25_B` | 1.5 / 0.75 | BM25 하이퍼파라미터 |
+### 2) 개념 임베딩 인덱스
+
+```bash
+python build_index.py
+```
+
+### 3) 질의
+
+```bash
+python query.py "초등 3학년 분수 크기 비교 쉬운 문항"
+python query.py --grade 초3 --difficulty 하 "분수 비교"
+python query.py --learner 저성취 "곱셈 문항"        # learners.json 대표 θ 사용
+python query.py --mode sparse --no-gen "원의 반지름"  # 검색만(생성 생략)
+```
+
+옵션: `--mode {hybrid,sparse,dense}` · `--grade` · `--difficulty {상,중,하}` ·
+`--theta FLOAT` · `--learner LABEL/ID` · `--k N` · `--no-gen`
+
+### 4) Obsidian 내보내기
+
+```bash
+python export_obsidian.py
+```
+
+- `vault/concepts/{tag} {개념명}.md` — frontmatter(학년·단원·IRT·정답률) + 설명 + `[[선수개념]]`/`[[후속개념]]`/`[[대표문항]]`
+- `vault/units/대단원 *.md` — 대단원 MOC
+- `vault/items/{문항ID}.md` — 개념당 대표문항(난이도 상/중/하 커버)
+- `graph.html` — 라이브러리 없는 단독 개념 선후관계 그래프(학년별 색, 드래그)
+
+`vault/` 폴더를 Obsidian에서 열면 개념 위계가 그래프 뷰로 드러납니다.
+
+## 검색 품질 비교 (eval)
+
+```bash
+python eval.py
+```
+
+키워드 질의(BM25 유리) / 의역 질의(임베딩 유리) / 전체(견고성) 세 축으로
+`sparse · dense · hybrid`의 Hit@5·MRR@5를 비교합니다. hybrid가 양쪽에서 견고함을 보이는 것이 핵심 메시지입니다.
+
+## 프로젝트 구조
+
+```
+build_catalog.py     # 실데이터 → 카탈로그 ETL
+build_index.py       # 개념 임베딩 캐시
+query.py             # 추천 CLI (검색→재랭킹→생성)
+export_obsidian.py   # 볼트 + graph.html
+eval.py              # sparse/dense/hybrid 비교
+src/
+  etl.py             # 지식체계 파싱 + zip 스트리밍 조인
+  irt.py             # 난이도 밴드 · 질의 파싱 · θ 적합도
+  knowledge_graph.py # 선후관계 조회
+  corpus.py          # 개념 카드(BM25/임베딩 텍스트)
+  recommender.py     # 개념→문항 확장 + IRT/θ 재랭킹
+  retriever.py bm25.py dense.py fusion.py tokenizer.py  # 검색 코어
+  generator.py ollama_client.py                          # 생성
+  obsidian_export.py # 볼트 + graph.html
+tests/               # stdlib unittest (etl/irt/graph/recommender/export/fusion)
+docs/superpowers/    # 설계 스펙 · 구현 계획
+```
+
+## 설계 원칙
+
+- **로컬 우선·키 불필요**: 외부 pip 의존성 0, 런타임은 로컬 Ollama만.
+- **실데이터 재현성**: 원천/산출물은 커밋하지 않고(빌드로 재생성), 위 절차로 누구나 동일 결과 재현.
+- **무음 실패 금지**: 조인 미매칭·고아 간선·미기동을 카운트/메시지로 표면화.
+
+## 테스트
+
+```bash
+python -m unittest discover -s tests
+```
+
+순수 로직(ETL 조인·IRT·그래프·재랭킹·Obsidian 생성·RRF)을 소형 픽스처로 검증합니다.
+임베딩·생성은 로컬 Ollama가 필요한 런타임 경로입니다.
