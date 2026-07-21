@@ -32,7 +32,8 @@ def _concept_from_side(side: dict) -> tuple[str, dict]:
     tag = str(side["id"])
     meta = {
         "name": side.get("name", ""),
-        "description": side.get("description", ""),
+        # 지식체계 JSON은 설명에 리터럴 '\n'을 담고 있어 개행으로 복원(Obsidian 가독성).
+        "description": side.get("description", "").replace("\\n", "\n"),
         "semester": side.get("semester", ""),
         "chapter": _split_chapter((side.get("chapter") or {}).get("name", "")),
         "achievement": (side.get("achievement") or {}).get("name", ""),
