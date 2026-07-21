@@ -16,6 +16,8 @@
   <img alt="Rerank" src="https://img.shields.io/badge/rerank-IRT%20%2B%20%CE%B8-orange">
 </p>
 
+> 🔗 **라이브 데모**: **[수학 개념 선후관계 그래프](https://a005-math-item-hybrid-rag.vercel.app/)** — 912개념·1,633 선후간선을 학년별 색으로 시각화(드래그·호버, Vercel 정적 배포)
+
 ---
 
 ## 무엇이 "완성본"인가
@@ -114,7 +116,7 @@ python export_obsidian.py
 
 ![수학 개념 선후관계 그래프](docs/assets/concept-graph.svg)
 
-> 인터랙티브 버전: 저장소의 [`graph.html`](graph.html)을 브라우저로 열면 드래그·호버가 됩니다.
+> 인터랙티브 버전: **[라이브 데모](https://a005-math-item-hybrid-rag.vercel.app/)**(Vercel) 또는 저장소의 [`graph.html`](graph.html)을 브라우저로 열면 드래그·호버가 됩니다.
 
 **개념 노트 예시** (`vault/concepts/1707 원의 중심, 반지름, 지름.md`):
 
