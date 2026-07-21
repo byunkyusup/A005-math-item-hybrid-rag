@@ -161,12 +161,17 @@ def render_graph_html(concepts: dict, edges: list, iterations: int = 120) -> str
     """인터랙티브 3D 그래프 HTML. 3D 좌표를 미리 계산해 심고, 브라우저는
     회전·투영·마우스오버만 처리한다(외부 라이브러리 없음, 912노드도 부드러움)."""
     tags, pos, links = _compute_layout_3d(concepts, edges, iterations)
-    nodes = [
-        {"x": round(pos[i][0], 3), "y": round(pos[i][1], 3), "z": round(pos[i][2], 3),
-         "label": concepts[t].get("name", t), "grade": concepts[t].get("grade", ""),
-         "hue": _GRADE_HUE.get(concepts[t].get("grade", ""), 0)}
-        for i, t in enumerate(tags)
-    ]
+    nodes = []
+    for i, t in enumerate(tags):
+        c = concepts[t]
+        nodes.append({
+            "x": round(pos[i][0], 3), "y": round(pos[i][1], 3), "z": round(pos[i][2], 3),
+            "label": c.get("name", t), "grade": c.get("grade", ""),
+            "hue": _GRADE_HUE.get(c.get("grade", ""), 0),
+            "sem": c.get("semester", ""), "unit": (c.get("chapter") or {}).get("대", ""),
+            "band": c.get("band", ""), "cr": c.get("correct_rate"),
+            "ic": c.get("item_count", 0),
+        })
     link_json = [{"source": a, "target": b} for a, b in links]
     data = json.dumps({"nodes": nodes, "links": link_json},
                       ensure_ascii=False).replace("<", "\\u003c")
@@ -323,49 +328,64 @@ def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int
 _GRAPH_TEMPLATE = """<!doctype html>
 <html lang="ko"><head><meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>수학 개념 선후관계 3D 그래프</title>
+<title>수학 개념 선후관계 3D 지식그래프</title>
 <style>
- :root{--card:rgba(20,24,33,.72);--line:rgba(255,255,255,.10)}
+ :root{--card:rgba(20,24,33,.74);--line:rgba(255,255,255,.10)}
  html,body{margin:0;height:100%;overflow:hidden;color:#e6e6e6;
    font-family:'Pretendard',system-ui,-apple-system,sans-serif;
    background:radial-gradient(1200px 800px at 70% 20%,#161d2b 0%,#0b0d12 60%,#07080c 100%)}
  .card{position:fixed;z-index:2;background:var(--card);border:1px solid var(--line);
    border-radius:12px;backdrop-filter:blur(8px);-webkit-backdrop-filter:blur(8px);
    box-shadow:0 8px 30px rgba(0,0,0,.35)}
- #hud{top:14px;left:14px;padding:12px 14px;max-width:min(70vw,520px);pointer-events:none}
+ #hud{top:14px;left:14px;padding:12px 14px;max-width:min(72vw,560px);pointer-events:none}
  #hud h1{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
- #hud p{margin:5px 0 0;font-size:12px;line-height:1.5;opacity:.72}
+ #hud p{margin:5px 0 0;font-size:12px;line-height:1.6;opacity:.72}
  #hud kbd{font:inherit;background:#ffffff14;border:1px solid var(--line);border-radius:4px;padding:0 5px}
- #legend{top:14px;right:14px;padding:10px 12px;font-size:12px}
- #legend b{display:block;margin:0 0 6px;font-size:11px;opacity:.6;font-weight:600;letter-spacing:.04em}
- #legend div{display:flex;align-items:center;gap:7px;margin:3px 0}
+ #legend{top:14px;right:14px;padding:10px 12px;font-size:12px;user-select:none}
+ #legend b{display:block;margin:0 0 6px;font-size:11px;opacity:.6;font-weight:600;letter-spacing:.03em}
+ #legend .row{display:flex;align-items:center;gap:7px;margin:2px 0;cursor:pointer;border-radius:6px;padding:1px 4px}
+ #legend .row:hover{background:#ffffff12}
+ #legend .row.off{opacity:.3}
  #legend i{width:10px;height:10px;border-radius:50%;display:inline-block;box-shadow:0 0 6px currentColor}
+ #legend .hint{margin-top:6px;font-size:10px;opacity:.5}
  #tip{position:fixed;padding:8px 11px;background:var(--card);border:1px solid var(--line);
-   border-radius:8px;font-size:12px;line-height:1.5;pointer-events:none;display:none;z-index:3;
+   border-radius:8px;font-size:12px;line-height:1.5;pointer-events:none;display:none;z-index:4;
    max-width:280px;backdrop-filter:blur(8px);box-shadow:0 8px 24px rgba(0,0,0,.4)}
  #tip b{font-size:13px}
- canvas{display:block;cursor:grab;touch-action:none}
+ #panel{left:14px;bottom:14px;padding:14px 16px 16px;max-width:min(84vw,340px);display:none;z-index:3}
+ #panel h2{margin:0 8px 10px 0;font-size:15px;letter-spacing:-.01em}
+ #panel .grid{display:grid;grid-template-columns:auto 1fr;gap:4px 14px;font-size:12px;line-height:1.6}
+ #panel .k{opacity:.55}
+ #panel .close{position:absolute;top:9px;right:11px;cursor:pointer;opacity:.6;font-size:15px;border:0;background:none;color:#fff}
+ canvas{display:block;cursor:grab;touch-action:none;outline:none}
 </style></head><body>
 <div id="hud" class="card">
  <h1>수학 개념 선후관계 3D 지식그래프</h1>
  <p>912개념 · 1,633 선후간선 · 학년별 색 · AIHub #27752 실데이터<br>
- <kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>더블클릭</kbd> 초기화 · <kbd>마우스오버</kbd> 상세</p>
+ <kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>클릭</kbd> 상세 · <kbd>더블클릭</kbd> 초기화 · <kbd>방향키</kbd> 회전</p>
 </div>
 <div id="legend" class="card"></div>
+<div id="panel" class="card"></div>
 <div id="tip"></div>
-<canvas id="c"></canvas>
+<canvas id="c" tabindex="0" role="img" aria-label="수학 개념 912개의 학년별 선후관계 3D 지식그래프. 드래그로 회전, 방향키로 회전, 클릭으로 개념 상세."></canvas>
 <script id="graph-data" type="application/json">__DATA__</script>
 <script>
 const G=JSON.parse(document.getElementById('graph-data').textContent);
 const N=G.nodes,L=G.links;
-const cv=document.getElementById('c'),ctx=cv.getContext('2d'),tip=document.getElementById('tip');
+const cv=document.getElementById('c'),ctx=cv.getContext('2d');
+const tip=document.getElementById('tip'),panel=document.getElementById('panel');
 const adj=N.map(()=>new Set());
 for(const l of L){adj[l.source].add(l.target);adj[l.target].add(l.source);}
+const deg=N.map((_,i)=>adj[i].size);
+const hubs=new Set(N.map((_,i)=>i).sort((a,b)=>deg[b]-deg[a]).slice(0,14));   // 핵심 허브 라벨
+const reduce=matchMedia('(prefers-reduced-motion:reduce)').matches;           // 접근성: 모션 최소화 존중
 let W,H,cx,cy,R;
 function fit(){W=cv.width=innerWidth;H=cv.height=innerHeight;cx=W/2;cy=H/2;R=Math.min(W,H)*0.42;}
 fit();addEventListener('resize',fit);
-let yaw=0.6,pitch=-0.35,dist=3.0,auto=true,hover=-1;
+let yaw=0.6,pitch=-0.35,dist=3.0,auto=!reduce,hover=-1,selected=-1;
 const P=N.map(()=>({X:0,Y:0,Z:0}));
+const active=new Set(N.map(n=>n.grade));   // 표시 중 학년(범례 필터)
+const vis=i=>active.has(N[i].grade);
 function project(){
  const cY=Math.cos(yaw),sY=Math.sin(yaw),cX=Math.cos(pitch),sX=Math.sin(pitch);
  for(let i=0;i<N.length;i++){const n=N[i];
@@ -380,40 +400,71 @@ function draw(){
  order.sort((a,b)=>P[a].Z-P[b].Z);
  ctx.clearRect(0,0,W,H);
  ctx.lineWidth=1;
- for(const l of L){const hot=hover>=0&&(l.source===hover||l.target===hover);
+ const fnode=hover>=0?hover:selected;
+ for(const l of L){if(!vis(l.source)||!vis(l.target))continue;
+   const hot=fnode>=0&&(l.source===fnode||l.target===fnode);
    ctx.strokeStyle=hot?'#ffd54abb':'#ffffff10';ctx.beginPath();
    ctx.moveTo(P[l.source].X,P[l.source].Y);ctx.lineTo(P[l.target].X,P[l.target].Y);ctx.stroke();}
- for(const i of order){const n=N[i],p=P[i];
-   const near=hover>=0&&(i===hover||adj[hover].has(i));
-   const depth=dist-p.Z; let r=(i===hover?5:(near?4:3))*(2.4/depth); if(r<1.4)r=1.4;
+ for(const i of order){if(!vis(i))continue;const n=N[i],p=P[i];
+   const foc=fnode>=0?(i===fnode||adj[fnode].has(i)):true;
+   const depth=dist-p.Z; let r=(i===fnode?5.5:(foc?3.2:2.6))*(2.4/depth); if(r<1.4)r=1.4;
    const dk=Math.max(0,Math.min(1,(p.Z+1)/2));
-   ctx.globalAlpha=hover<0?(0.4+0.6*dk):(near?1:0.22);
+   ctx.globalAlpha=foc?(0.45+0.55*dk):0.12;
    ctx.beginPath();ctx.arc(p.X,p.Y,r,0,7);
    ctx.fillStyle='hsl('+n.hue+','+(55+20*dk)+'%,'+(45+18*dk)+'%)';ctx.fill();
-   if(i===hover){ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();ctx.lineWidth=1;}
+   if(i===fnode){ctx.lineWidth=2;ctx.strokeStyle='#fff';ctx.stroke();ctx.lineWidth=1;}
    ctx.globalAlpha=1;}
+ ctx.textAlign='center';ctx.font='11px system-ui,sans-serif';
+ for(const i of order){if(!vis(i))continue;
+   const show=(hubs.has(i)&&fnode<0)||i===fnode;
+   if(!show)continue;const p=P[i],w=ctx.measureText(N[i].label).width;
+   ctx.fillStyle='#000a';ctx.fillRect(p.X-w/2-4,p.Y-23,w+8,15);
+   ctx.fillStyle='#fff';ctx.fillText(N[i].label,p.X,p.Y-12);}
 }
-function pick(mx,my){let best=-1,bd=10;
- for(let i=0;i<N.length;i++){const d=Math.hypot(P[i].X-mx,P[i].Y-my);if(d<bd){bd=d;best=i;}}return best;}
-let drag=null;
-cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY};auto=false;cv.style.cursor='grabbing';});
+function pick(mx,my){let best=-1,bd=11;
+ for(let i=0;i<N.length;i++){if(!vis(i))continue;const d=Math.hypot(P[i].X-mx,P[i].Y-my);if(d<bd){bd=d;best=i;}}return best;}
+function showPanel(i){selected=i;const n=N[i];const cr=(n.cr==null?'-':n.cr+'%');
+ panel.style.display='block';
+ panel.innerHTML='<button class="close" aria-label="닫기">×</button><h2>'+n.label+'</h2><div class="grid">'
+  +'<span class="k">학년</span><span>'+n.grade+'</span>'
+  +'<span class="k">학기</span><span>'+(n.sem||'-')+'</span>'
+  +'<span class="k">대단원</span><span>'+(n.unit||'-')+'</span>'
+  +'<span class="k">난이도</span><span>'+n.band+'</span>'
+  +'<span class="k">평균 정답률</span><span>'+cr+'</span>'
+  +'<span class="k">문항 수</span><span>'+n.ic+'개</span>'
+  +'<span class="k">선후 연결</span><span>'+deg[i]+'개</span></div>';
+ panel.querySelector('.close').onclick=()=>{panel.style.display='none';selected=-1;};
+}
+let drag=null,moved=false;
+cv.addEventListener('mousedown',e=>{drag={x:e.clientX,y:e.clientY};moved=false;auto=false;cv.style.cursor='grabbing';});
 addEventListener('mouseup',()=>{drag=null;cv.style.cursor='grab';});
+cv.addEventListener('click',e=>{if(moved)return;const h=pick(e.clientX,e.clientY);
+ if(h>=0)showPanel(h);else{selected=-1;panel.style.display='none';}});
 cv.addEventListener('mousemove',e=>{const mx=e.clientX,my=e.clientY;
- if(drag){yaw+=(mx-drag.x)*0.01;pitch+=(my-drag.y)*0.01;pitch=Math.max(-1.4,Math.min(1.4,pitch));drag={x:mx,y:my};return;}
+ if(drag){moved=true;yaw+=(mx-drag.x)*0.01;pitch+=(my-drag.y)*0.01;pitch=Math.max(-1.4,Math.min(1.4,pitch));drag={x:mx,y:my};return;}
  const h=pick(mx,my);hover=h;
- if(h>=0){const n=N[h];tip.style.display='block';tip.style.left=(mx+12)+'px';tip.style.top=(my+12)+'px';
-   tip.innerHTML='<b>'+n.label+'</b><br>학년: '+n.grade+' · 선후연결 '+adj[h].size+'개';}
+ if(h>=0){const n=N[h];tip.style.display='block';tip.style.left=(mx+14)+'px';tip.style.top=(my+14)+'px';
+   tip.innerHTML='<b>'+n.label+'</b><br>'+n.grade+' · 선후연결 '+deg[h]+'개 · 클릭=상세';}
  else tip.style.display='none';});
 cv.addEventListener('wheel',e=>{e.preventDefault();dist*=e.deltaY<0?0.92:1.08;dist=Math.max(1.6,Math.min(7,dist));},{passive:false});
-cv.addEventListener('dblclick',()=>{yaw=0.6;pitch=-0.35;dist=3.0;auto=true;});
-// 모바일 터치: 한 손가락 회전
-cv.addEventListener('touchstart',e=>{if(e.touches[0]){drag={x:e.touches[0].clientX,y:e.touches[0].clientY};auto=false;}},{passive:true});
-cv.addEventListener('touchmove',e=>{if(drag&&e.touches[0]){e.preventDefault();const t=e.touches[0];
+cv.addEventListener('dblclick',()=>{yaw=0.6;pitch=-0.35;dist=3.0;auto=!reduce;});
+cv.addEventListener('keydown',e=>{const k=e.key;
+ if(k==='ArrowLeft')yaw-=0.08;else if(k==='ArrowRight')yaw+=0.08;
+ else if(k==='ArrowUp')pitch=Math.max(-1.4,pitch-0.08);else if(k==='ArrowDown')pitch=Math.min(1.4,pitch+0.08);
+ else return;auto=false;e.preventDefault();});
+cv.addEventListener('touchstart',e=>{if(e.touches[0]){drag={x:e.touches[0].clientX,y:e.touches[0].clientY};moved=false;auto=false;}},{passive:true});
+cv.addEventListener('touchmove',e=>{if(drag&&e.touches[0]){e.preventDefault();const t=e.touches[0];moved=true;
  yaw+=(t.clientX-drag.x)*0.01;pitch+=(t.clientY-drag.y)*0.01;pitch=Math.max(-1.4,Math.min(1.4,pitch));
  drag={x:t.clientX,y:t.clientY};}},{passive:false});
 cv.addEventListener('touchend',()=>{drag=null;});
+// 범례 = 학년 표시/숨김 필터
 const seen={};for(const n of N)seen[n.grade]=n.hue;
-document.getElementById('legend').innerHTML='<b>학년</b>'+Object.keys(seen).sort().map(g=>
- '<div><i style="background:hsl('+seen[g]+',70%,60%);color:hsl('+seen[g]+',70%,60%)"></i>'+g+'</div>').join('');
+const lg=document.getElementById('legend');
+lg.innerHTML='<b>학년 · 클릭=표시/숨김</b>'+Object.keys(seen).sort().map(g=>
+ '<div class="row" data-g="'+g+'"><i style="background:hsl('+seen[g]+',70%,60%);color:hsl('+seen[g]+',70%,60%)"></i>'+g+'</div>').join('')
+ +'<div class="hint">더블클릭 = 전체 다시 표시</div>';
+lg.querySelectorAll('.row').forEach(el=>{
+ el.onclick=()=>{const g=el.dataset.g;active.has(g)?active.delete(g):active.add(g);el.classList.toggle('off',!active.has(g));};
+ el.ondblclick=()=>{Object.keys(seen).forEach(x=>active.add(x));lg.querySelectorAll('.row').forEach(r=>r.classList.remove('off'));};});
 function loop(){if(auto&&!drag)yaw+=0.0025;draw();requestAnimationFrame(loop);}loop();
 </script></body></html>"""
