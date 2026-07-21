@@ -16,7 +16,7 @@
   <img alt="Rerank" src="https://img.shields.io/badge/rerank-IRT%20%2B%20%CE%B8-orange">
 </p>
 
-> 🔗 **라이브 데모**: **[수학 개념 선후관계 3D 지식그래프](https://a005-math-item-hybrid-rag.vercel.app/)** — 912개념·1,633 선후간선을 학년별 색의 **3D 인터랙티브 그래프**로 시각화(드래그=회전 · 휠=확대 · 마우스오버=상세, 외부 라이브러리 없이 Vercel 정적 배포)
+> 🔗 **라이브 데모**: **[수학 개념 선후관계 3D 지식그래프](https://a005-math-item-hybrid-rag.vercel.app/)** — 912개념·1,633 선후간선을 학년별 색의 **3D 인터랙티브 그래프**로 시각화. 드래그=회전 · 휠=확대 · 클릭=개념 상세(학기·단원·난이도·정답률·문항수) · 학년 범례 필터 · 핵심 허브 라벨 · 방향키/터치/`prefers-reduced-motion` 접근성 지원. 외부 라이브러리 없이 Vercel 정적 배포.
 
 ---
 
