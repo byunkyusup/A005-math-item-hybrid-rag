@@ -108,9 +108,19 @@ python export_obsidian.py
 - `vault/concepts/{tag} {개념명}.md` — frontmatter(학년·단원·IRT·정답률) + 설명 + `[[선수개념]]`/`[[후속개념]]`/`[[대표문항]]`
 - `vault/units/대단원 *.md` — 대단원 MOC
 - `vault/items/{문항ID}.md` — 개념당 대표문항(난이도 상/중/하 커버)
-- `graph.html` — 라이브러리 없는 단독 개념 선후관계 그래프(학년별 색, 드래그)
+- `graph.html` / `public/graph.html` — 라이브러리 없는 단독 **3D 개념 선후관계 그래프**(학년별 색 · 회전·확대·클릭 상세·학년 필터·접근성)
 
 `vault/` 폴더를 Obsidian에서 열면 개념 위계가 그래프 뷰로 드러납니다.
+
+### 5) 웹 데모 생성 (Hybrid RAG 파이프라인)
+
+```bash
+python build_demo.py     # 예시 질의의 전체 파이프라인을 미리 계산 → public/index.html
+```
+
+- `public/index.html` — 질의 → BM25 ∥ bge-m3 → RRF → IRT/θ 재랭킹 → LLM 을 단계별로 보여주는 **파이프라인 데모**(정적, 웹 메인)
+- `public/graph.html` — 3D 지식그래프(코퍼스). `export_obsidian.py`가 함께 생성
+- `vercel.json` 이 `public/`을 그대로 정적 배포 → [라이브](https://a005-math-item-hybrid-rag.vercel.app/)
 
 ### Obsidian 미리보기
 
@@ -118,7 +128,7 @@ python export_obsidian.py
 
 ![수학 개념 선후관계 그래프](docs/assets/concept-graph.svg)
 
-> 인터랙티브 버전: **[라이브 데모](https://a005-math-item-hybrid-rag.vercel.app/)**(Vercel) 또는 저장소의 [`graph.html`](graph.html)을 브라우저로 열면 드래그·호버가 됩니다.
+> 인터랙티브 3D 버전: **[라이브 3D 지식그래프](https://a005-math-item-hybrid-rag.vercel.app/graph.html)**(Vercel) 또는 저장소의 [`graph.html`](graph.html)을 브라우저로 열면 회전·확대·클릭 상세가 됩니다. (웹 메인은 [Hybrid RAG 파이프라인 데모](https://a005-math-item-hybrid-rag.vercel.app/))
 
 **개념 노트 예시** (`vault/concepts/1707 원의 중심, 반지름, 지름.md`):
 
@@ -177,7 +187,8 @@ python eval.py
 build_catalog.py     # 실데이터 → 카탈로그 ETL
 build_index.py       # 개념 임베딩 캐시
 query.py             # 추천 CLI (검색→재랭킹→생성)
-export_obsidian.py   # 볼트 + graph.html
+export_obsidian.py   # 볼트 + 3D graph.html
+build_demo.py        # Hybrid RAG 파이프라인 데모 생성(public/index.html)
 eval.py              # sparse/dense/hybrid 비교
 src/
   etl.py             # 지식체계 파싱 + zip 스트리밍 조인
@@ -187,7 +198,10 @@ src/
   recommender.py     # 개념→문항 확장 + IRT/θ 재랭킹
   retriever.py bm25.py dense.py fusion.py tokenizer.py  # 검색 코어
   generator.py ollama_client.py                          # 생성
-  obsidian_export.py # 볼트 + graph.html
+  obsidian_export.py # 볼트 + 3D 지식그래프(graph.html/SVG)
+  pipeline_demo.py   # Hybrid RAG 파이프라인 데모 렌더러
+public/              # 웹 배포물(index.html=파이프라인 데모, graph.html=3D 그래프)
+.github/workflows/   # main 머지 → Vercel 자동배포 + 태그
 tests/               # stdlib unittest (etl/irt/graph/recommender/export/fusion)
 docs/superpowers/    # 설계 스펙 · 구현 계획
 ```
