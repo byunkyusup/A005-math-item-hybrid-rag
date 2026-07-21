@@ -157,9 +157,21 @@ _GRADE_HUE = {"초1": 10, "초2": 40, "초3": 70, "초4": 110, "초5": 150,
               "초6": 190, "중1": 230, "중2": 270, "중3": 310}
 
 
+def _visible_concepts(concepts: dict, edges: list):
+    """그래프 시각화용: '미분류 개념'(knowledgeTag 미매칭 폴백)을 제외.
+
+    코퍼스/볼트에는 유지하되, 시각적 노이즈만 제거한다.
+    """
+    vis = {t: c for t, c in concepts.items()
+           if not str(c.get("name", "")).startswith("미분류 개념")}
+    ve = [e for e in edges if e[0] in vis and e[1] in vis]
+    return vis, ve
+
+
 def render_graph_html(concepts: dict, edges: list, iterations: int = 120) -> str:
     """인터랙티브 3D 그래프 HTML. 3D 좌표를 미리 계산해 심고, 브라우저는
     회전·투영·마우스오버만 처리한다(외부 라이브러리 없음, 912노드도 부드러움)."""
+    concepts, edges = _visible_concepts(concepts, edges)
     tags, pos, links = _compute_layout_3d(concepts, edges, iterations)
     nodes = []
     for i, t in enumerate(tags):
@@ -295,6 +307,7 @@ def _compute_layout_3d(concepts: dict, edges: list, iterations: int):
 def render_graph_svg(concepts: dict, edges: list, width: int = 1200, height: int = 800,
                      iterations: int = 200) -> str:
     """정적 SVG 그래프(브라우저 불필요, README 첨부용). 2D 레이아웃."""
+    concepts, edges = _visible_concepts(concepts, edges)
     tags, pos, links = _compute_layout(concepts, edges, width, height, iterations)
     n = len(tags)
     if n == 0:

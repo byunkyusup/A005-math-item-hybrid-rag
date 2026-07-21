@@ -13,10 +13,14 @@ _EASY_KW = ("쉬운", "기초", "쉽", "저난도", "하난이도")
 _MID_KW = ("보통", "중난도", "중간")
 
 
-def band(b: float) -> str:
-    if b >= config.B_HARD:
+def band(b: float, hard: float | None = None, easy: float | None = None) -> str:
+    if hard is None:
+        hard = config.B_HARD
+    if easy is None:
+        easy = config.B_EASY
+    if b >= hard:
         return "상"
-    if b <= config.B_EASY:
+    if b <= easy:
         return "하"
     return "중"
 

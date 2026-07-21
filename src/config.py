@@ -46,3 +46,20 @@ EMBED_CACHE_PATH = os.path.join(DATA_DIR, "embeddings.json")
 # Obsidian 출력
 VAULT_DIR = os.path.join(PROJECT_DIR, "vault")
 GRAPH_HTML_PATH = os.path.join(PROJECT_DIR, "graph.html")
+
+# 난이도 밴드 임계 — build_catalog.py가 실제 b 분포 분위수(33/66%)로 산출해 저장.
+# 파일이 있으면 그 값으로 B_HARD/B_EASY를 덮어써 상/중/하 분류를 데이터에 맞춘다.
+THRESHOLDS_PATH = os.path.join(DATA_DIR, "thresholds.json")
+
+
+def _load_thresholds():
+    import json
+    try:
+        with open(THRESHOLDS_PATH, encoding="utf-8") as f:
+            d = json.load(f)
+        return float(d["b_hard"]), float(d["b_easy"])
+    except (OSError, KeyError, ValueError, TypeError):
+        return B_HARD, B_EASY
+
+
+B_HARD, B_EASY = _load_thresholds()

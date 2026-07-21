@@ -156,6 +156,16 @@ def _fallback_meta(tag: str) -> dict:
 def assemble(concepts_meta: dict, edges: list, item_irt: dict, resp: dict,
              learners: dict) -> dict:
     """조인 결과를 카탈로그 dict로 조립."""
+    import statistics
+
+    # 난이도 밴드 임계를 실제 b 분포 분위수(33/66%)로 산출 — 상/중/하를 데이터에 맞춤.
+    all_b = [row["b"] for row in item_irt.values()]
+    if len(all_b) >= 2:
+        qs = statistics.quantiles(all_b, n=3)
+        b_easy, b_hard = round(qs[0], 4), round(qs[1], 4)
+    else:
+        b_easy, b_hard = config.B_EASY, config.B_HARD
+
     # --- items ---
     items: dict = {}
     for aid, irt_row in item_irt.items():
@@ -168,7 +178,7 @@ def assemble(concepts_meta: dict, edges: list, item_irt: dict, resp: dict,
             "a": irt_row["a"],
             "b": irt_row["b"],
             "c": irt_row["c"],
-            "band": irt.band(irt_row["b"]),
+            "band": irt.band(irt_row["b"], b_hard, b_easy),
             "correct_rate": rate,
             "attempts": total,
         }
@@ -214,7 +224,7 @@ def assemble(concepts_meta: dict, edges: list, item_irt: dict, resp: dict,
             "achievement": meta["achievement"],
             "grade": by_tag_grade[tag].most_common(1)[0][0],
             "avg_b": round(avg_b, 4),
-            "band": irt.band(avg_b),
+            "band": irt.band(avg_b, b_hard, b_easy),
             "correct_rate": round(c / t * 100, 1) if t else None,
             "item_count": len(by_tag_b[tag]),
             "prereq_tags": pre_map.get(tag, []),
@@ -226,7 +236,8 @@ def assemble(concepts_meta: dict, edges: list, item_irt: dict, resp: dict,
         f"문항 {len(items)} · 간선 {len(kept_edges)}/{len(edges)} 유지",
         file=sys.stderr,
     )
-    return {"concepts": concepts, "items": items, "edges": kept_edges, "learners": learners}
+    return {"concepts": concepts, "items": items, "edges": kept_edges,
+            "learners": learners, "thresholds": {"b_hard": b_hard, "b_easy": b_easy}}
 
 
 # --------------------------------------------------------------------------- #
@@ -255,6 +266,7 @@ def write_catalog(catalog: dict) -> None:
         ("items", config.ITEMS_PATH),
         ("edges", config.EDGES_PATH),
         ("learners", config.LEARNERS_PATH),
+        ("thresholds", config.THRESHOLDS_PATH),
     ):
         with open(path, "w", encoding="utf-8") as f:
             json.dump(catalog[key], f, ensure_ascii=False)

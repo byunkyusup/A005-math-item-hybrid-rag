@@ -30,6 +30,7 @@ QUERIES = [
     {"q": "피자를 똑같이 나눈 조각을 수로 나타내는 방법", "grade": None, "difficulty": None},
     {"q": "삼각형의 넓이 구하기", "grade": None, "difficulty": None},
     {"q": "일차방정식 어려운 문항", "grade": None, "difficulty": "상"},
+    {"q": "이 학습자(θ=1.2, 상위권) 능력에 맞는 곱셈 문항", "grade": None, "difficulty": None, "theta": 1.2},
 ]
 
 TOPN = 6
@@ -71,15 +72,16 @@ def main():
             fused_out.append({"name": nm, "grade": concept_list[doc_id]["grade"], "from": src})
 
         recs = recommend(q, retr, concepts, items_by_tag, graph, mode="hybrid",
-                         grade=spec["grade"], difficulty=spec["difficulty"], theta=None,
-                         k=4, concept_tags=tags)
+                         grade=spec.get("grade"), difficulty=spec.get("difficulty"),
+                         theta=spec.get("theta"), k=4, concept_tags=tags)
         final = [{"id": r["item"]["assessmentItemID"], "concept": (r["concept"] or {}).get("name", ""),
                   "grade": r["item"].get("grade", ""), "band": r["item"].get("band", ""),
                   "cr": r["item"].get("correct_rate"), "prereqs": r.get("prereqs", [])}
                  for r in recs]
         answer = generate_answer(q, recs)
 
-        demo.append({"q": q, "grade": spec["grade"], "difficulty": spec["difficulty"],
+        demo.append({"q": q, "grade": spec.get("grade"), "difficulty": spec.get("difficulty"),
+                     "theta": spec.get("theta"),
                      "bm25": _names(concept_list, sp), "dense": _names(concept_list, dn),
                      "fused": fused_out, "final": final, "answer": answer})
         print(f"  ✓ {q}", file=sys.stderr)
