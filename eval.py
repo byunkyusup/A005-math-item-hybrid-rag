@@ -16,17 +16,22 @@ from src import config
 from src.corpus import load_corpus
 from src.retriever import HybridRetriever
 
-# (A) 키워드 질의
+# (A) 키워드 질의: 교육과정 용어를 그대로 포함 → 어휘 매칭(BM25) 우세 예상
 KEYWORD_QUERIES = [
-    {"q": "초3 분수 크기 비교", "grade": "초3", "concept_has": "분수"},
-    {"q": "초3 원의 반지름 지름", "grade": "초3", "concept_has": "원"},
-    {"q": "초3 나눗셈", "grade": "초3", "concept_has": "나눗셈"},
+    {"q": "분수 크기 비교", "concept_has": "분수"},
+    {"q": "삼각형의 넓이 구하기", "concept_has": "삼각형"},
+    {"q": "원의 반지름과 지름", "concept_has": "원"},
+    {"q": "곱셈 공식", "concept_has": "곱셈"},
+    {"q": "닮음의 성질", "concept_has": "닮음"},
 ]
 
-# (B) 의역 질의 (교육과정 용어를 거의 쓰지 않음)
+# (B) 의역 질의: 교육과정 용어를 거의 쓰지 않고 상황으로 묻는다 → 의미 검색(dense) 우세 예상
 PARAPHRASE_QUERIES = [
-    {"q": "피자를 똑같이 나눈 조각 중 몇 조각인지 나타내는 방법", "grade": "초3", "concept_has": "분수"},
-    {"q": "한 점에서 같은 거리에 있는 점들이 그리는 동그란 도형", "grade": "초3", "concept_has": "원"},
+    {"q": "두 도형이 크기만 다르고 모양이 완전히 같은지 따지는 문제", "concept_has": "닮음"},
+    {"q": "피자를 똑같이 여러 조각으로 나눴을 때 한 조각을 수로 나타내기", "concept_has": "분수"},
+    {"q": "세 변의 길이로 삼각형의 넓이를 구하는 문제", "concept_has": "삼각형"},
+    {"q": "막대 모양으로 자료의 많고 적음을 한눈에 보여주는 그림", "concept_has": "그래프"},
+    {"q": "물건을 여러 사람에게 똑같이 나누어 주는 계산", "concept_has": "나눗셈"},
 ]
 
 K = 5
@@ -34,7 +39,7 @@ MODES = ["sparse", "dense", "hybrid"]
 
 
 def is_relevant(concept: dict, spec: dict) -> bool:
-    return concept["grade"] == spec["grade"] and spec["concept_has"] in concept["name"]
+    return spec["concept_has"] in concept["name"]
 
 
 def evaluate(retriever, concepts, queries, mode):
