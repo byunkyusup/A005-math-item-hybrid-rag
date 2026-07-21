@@ -341,6 +341,8 @@ _GRAPH_TEMPLATE = """<!doctype html>
  #hud h1{margin:0;font-size:15px;font-weight:700;letter-spacing:-.01em}
  #hud p{margin:5px 0 0;font-size:12px;line-height:1.6;opacity:.72}
  #hud kbd{font:inherit;background:#ffffff14;border:1px solid var(--line);border-radius:4px;padding:0 5px}
+ #hud a{pointer-events:auto;color:#8ab4ff;text-decoration:none;font-weight:600}
+ #hud a:hover{text-decoration:underline}
  #legend{top:14px;right:14px;padding:10px 12px;font-size:12px;user-select:none}
  #legend b{display:block;margin:0 0 6px;font-size:11px;opacity:.6;font-weight:600;letter-spacing:.03em}
  #legend .row{display:flex;align-items:center;gap:7px;margin:2px 0;cursor:pointer;border-radius:6px;padding:1px 4px}
@@ -361,8 +363,9 @@ _GRAPH_TEMPLATE = """<!doctype html>
 </style></head><body>
 <div id="hud" class="card">
  <h1>수학 개념 선후관계 3D 지식그래프</h1>
- <p>912개념 · 1,633 선후간선 · 학년별 색 · AIHub #27752 실데이터<br>
- <kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>클릭</kbd> 상세 · <kbd>더블클릭</kbd> 초기화 · <kbd>방향키</kbd> 회전</p>
+ <p>검색 대상 <b>지식베이스(코퍼스)</b> · 912개념 · 1,633 선후간선 · AIHub #27752 실데이터<br>
+ <kbd>드래그</kbd> 회전 · <kbd>휠</kbd> 확대 · <kbd>클릭</kbd> 상세 · <kbd>더블클릭</kbd> 초기화 · <kbd>방향키</kbd> 회전<br>
+ <a href="./">← Hybrid RAG 파이프라인 데모로</a></p>
 </div>
 <div id="legend" class="card"></div>
 <div id="panel" class="card"></div>
@@ -403,7 +406,7 @@ function draw(){
  const fnode=hover>=0?hover:selected;
  for(const l of L){if(!vis(l.source)||!vis(l.target))continue;
    const hot=fnode>=0&&(l.source===fnode||l.target===fnode);
-   ctx.strokeStyle=hot?'#ffd54abb':'#ffffff10';ctx.beginPath();
+   ctx.strokeStyle=hot?'#ffd54abb':'#ffffff2e';ctx.beginPath();
    ctx.moveTo(P[l.source].X,P[l.source].Y);ctx.lineTo(P[l.target].X,P[l.target].Y);ctx.stroke();}
  for(const i of order){if(!vis(i))continue;const n=N[i],p=P[i];
    const foc=fnode>=0?(i===fnode||adj[fnode].has(i)):true;

@@ -34,9 +34,10 @@ def main():
     html_doc = render_graph_html(concepts, edges)   # 인터랙티브(확대·이동·마우스오버)
     svg_doc = render_graph_svg(concepts, edges)      # README 첨부용 정적 이미지
 
-    # 웹 랜딩(public/index.html) = 인터랙티브 그래프. 저장소 루트에도 graph.html로 둔다.
+    # 3D 지식그래프(보조 뷰) = 저장소 루트 graph.html + public/graph.html.
+    # 웹 메인(public/index.html)은 build_demo.py의 Hybrid RAG 파이프라인 데모가 담당.
     for path in (config.GRAPH_HTML_PATH,
-                 os.path.join(config.PROJECT_DIR, "public", "index.html")):
+                 os.path.join(config.PROJECT_DIR, "public", "graph.html")):
         os.makedirs(os.path.dirname(path), exist_ok=True)
         with open(path, "w", encoding="utf-8") as f:
             f.write(html_doc)
@@ -48,8 +49,9 @@ def main():
 
     print(f"볼트 → {config.VAULT_DIR}")
     print(f"  개념 {stats['concepts']} · 단원 {stats['units']} · 대표문항 {stats['items']}")
-    print(f"그래프 → graph.html · public/index.html(인터랙티브) · docs/assets/concept-graph.svg "
+    print(f"3D 지식그래프 → graph.html · public/graph.html · docs/assets/concept-graph.svg "
           f"(개념 {len(concepts)} · 간선 {len(edges)})")
+    print("웹 메인(public/index.html)은 `python build_demo.py`로 생성하세요.")
 
 
 if __name__ == "__main__":
