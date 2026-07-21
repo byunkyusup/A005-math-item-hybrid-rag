@@ -95,7 +95,8 @@ function items(arr){return '<div class="items">'+arr.map(it=>'<div class="item">
  +'</div>').join('')+'</div>';}
 function sel(i){[...chips.children].forEach((c,j)=>c.classList.toggle('on',j===i));
  const d=DEMO[i];
- const meta=[d.grade?('학년 '+d.grade):null,d.difficulty?('난이도 '+d.difficulty):null,'모드 hybrid']
+ const meta=[d.grade?('학년 '+d.grade):null,d.difficulty?('난이도 '+d.difficulty):null,
+   (d.theta!=null?('θ '+d.theta+' (개인화)'):null),'모드 hybrid']
    .filter(Boolean).map(x=>'<span>'+x+'</span>').join('');
  view.innerHTML=
  '<div class="stage card"><h2>① 질의</h2><div class="qbox">"'+esc(d.q)+'"</div><div class="qmeta">'+meta+'</div></div>'
