@@ -14,8 +14,8 @@ from src.ollama_client import embed
 
 
 def main():
-    items, doc_texts, embed_texts = load_corpus()
-    print(f"문서 {len(embed_texts)}건 임베딩 시작 (모델: {config.EMBED_MODEL})")
+    concepts, doc_texts, embed_texts = load_corpus()
+    print(f"개념 {len(embed_texts)}건 임베딩 시작 (모델: {config.EMBED_MODEL})")
 
     vectors = []
     t0 = time.time()
