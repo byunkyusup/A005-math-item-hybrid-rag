@@ -15,15 +15,34 @@ TOP_K_SPARSE = 30   # BM25 1차 후보 수
 TOP_K_DENSE = 30    # 임베딩 1차 후보 수
 RRF_K = 60          # RRF 상수 (관례적으로 60)
 FINAL_K = 5         # 최종적으로 LLM에 넘길 문항 수
+TOP_CONCEPTS = 8    # 문항 확장 전 상위 개념 수
 
 # --- BM25 하이퍼파라미터 ---
 BM25_K1 = 1.5
 BM25_B = 0.75
 
+# --- IRT 난이도 밴드 / θ 재랭킹 ---
+B_HARD = 0.5        # IRT 난이도 b 임계 (b 클수록 어려움)
+B_EASY = -0.5
+W_SEARCH = 0.6      # 재랭킹: 검색 순위 가중치
+W_FIT = 0.4         # 재랭킹: 난이도·θ 적합도 가중치
+REP_ITEMS_PER_CONCEPT = 5   # Obsidian 개념당 대표문항 상한
+
 # --- 경로 ---
 _SRC_DIR = os.path.dirname(os.path.abspath(__file__))
 PROJECT_DIR = os.path.dirname(_SRC_DIR)
 DATA_DIR = os.path.join(PROJECT_DIR, "data")
+# 원천(AIHub 다운로드본) 경로 — 환경변수로 override 가능.
+RAW_DATA_DIR = os.environ.get(
+    "MATH_DATA_DIR",
+    "/Users/pablo/Downloads/수학분야 학습자 역량 측정 데이터",
+)
+# ETL 산출 카탈로그
+CONCEPTS_PATH = os.path.join(DATA_DIR, "concepts.json")
 ITEMS_PATH = os.path.join(DATA_DIR, "items.json")
-RESPONSES_PATH = os.path.join(DATA_DIR, "responses.json")
+EDGES_PATH = os.path.join(DATA_DIR, "edges.json")
+LEARNERS_PATH = os.path.join(DATA_DIR, "learners.json")
 EMBED_CACHE_PATH = os.path.join(DATA_DIR, "embeddings.json")
+# Obsidian 출력
+VAULT_DIR = os.path.join(PROJECT_DIR, "vault")
+GRAPH_HTML_PATH = os.path.join(PROJECT_DIR, "graph.html")
